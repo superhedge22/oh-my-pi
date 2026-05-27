@@ -210,6 +210,7 @@
 ### Fixed
 
 - Fixed `omp` startup and `/changelog` reading the host project's `CHANGELOG.md` as omp's — `getPackageDir()` no longer falls back to the user's `cwd` when no owning `package.json` is locatable, preventing spurious `lastChangelogVersion` writes ([#1423](https://github.com/can1357/oh-my-pi/issues/1423))
+- Fixed empty assistant stop retry caps resolving without leaving auto-retry callers waiting indefinitely
 
 ### Fixed
 
