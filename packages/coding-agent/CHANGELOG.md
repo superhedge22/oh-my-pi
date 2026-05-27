@@ -155,6 +155,7 @@
 
 - Fixed plan-mode re-entry after approval reopening a fresh `local://PLAN.md` instead of the approved titled plan artifact, which could duplicate plan content and fail approval on an existing destination.
 - Fixed `read` URL reader mode aborting after a stalled Jina request instead of falling back to trafilatura/lynx/native: Jina (and Parallel extract) now have their own per-attempt sub-budget capped at 10s, the catch handler honours only real user cancellation, and the in-process native renderer is always attempted on already-loaded HTML ([#1449](https://github.com/can1357/oh-my-pi/issues/1449))
+- Fixed empty assistant stop retry caps resolving without leaving auto-retry callers waiting indefinitely
 
 ## [15.5.6] - 2026-05-27
 ### Added
@@ -210,7 +211,6 @@
 ### Fixed
 
 - Fixed `omp` startup and `/changelog` reading the host project's `CHANGELOG.md` as omp's — `getPackageDir()` no longer falls back to the user's `cwd` when no owning `package.json` is locatable, preventing spurious `lastChangelogVersion` writes ([#1423](https://github.com/can1357/oh-my-pi/issues/1423))
-- Fixed empty assistant stop retry caps resolving without leaving auto-retry callers waiting indefinitely
 
 ### Fixed
 
