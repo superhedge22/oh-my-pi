@@ -36,8 +36,13 @@ const setTitleTool: Tool = {
 	},
 };
 
-function getTitleModel(registry: ModelRegistry, settings: Settings, currentModel?: Model<Api>): Model<Api> | undefined {
-	const availableModels = registry.getAvailable();
+function getTitleModel(
+	registry: ModelRegistry,
+	settings: Settings,
+	currentModel?: Model<Api>,
+	availableModelsOverride?: readonly Model<Api>[],
+): Model<Api> | undefined {
+	const availableModels = availableModelsOverride ? [...availableModelsOverride] : registry.getAvailable();
 	if (availableModels.length === 0) return undefined;
 
 	const titleModel = resolveRoleSelection(["commit", "smol"], settings, availableModels, registry)?.model;
@@ -68,8 +73,9 @@ export async function generateSessionTitle(
 	sessionId?: string,
 	currentModel?: Model<Api>,
 	metadataResolver?: (provider: string) => Record<string, unknown> | undefined,
+	availableModels?: readonly Model<Api>[],
 ): Promise<string | null> {
-	const model = getTitleModel(registry, settings, currentModel);
+	const model = getTitleModel(registry, settings, currentModel, availableModels);
 	if (!model) {
 		logger.debug("title-generator: no title model found");
 		return null;
