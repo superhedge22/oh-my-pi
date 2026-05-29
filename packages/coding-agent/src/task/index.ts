@@ -14,7 +14,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
-import path from "node:path";
+import * as path from "node:path";
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import type { Usage } from "@oh-my-pi/pi-ai";
 import { $env, prompt, Snowflake } from "@oh-my-pi/pi-utils";
@@ -774,6 +774,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 
 		// Initialize progress tracking
 		const progressMap = new Map<number, AgentProgress>();
+		const scopedModels = this.session.getScopedModels?.();
 
 		// Update callback
 		const emitProgress = () => {
@@ -903,6 +904,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 						taskDepth,
 						modelOverride,
 						parentActiveModelPattern,
+						scopedModels,
 						thinkingLevel: thinkingLevelOverride,
 						outputSchema: effectiveOutputSchema,
 						sessionFile,
@@ -959,6 +961,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 						taskDepth,
 						modelOverride,
 						parentActiveModelPattern,
+						scopedModels,
 						thinkingLevel: thinkingLevelOverride,
 						outputSchema: effectiveOutputSchema,
 						sessionFile,
@@ -999,6 +1002,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 												this.session.modelRegistry!,
 												this.session.settings,
 												this.session.getSessionId?.() ?? undefined,
+												this.session.getAvailableModels?.(),
 											);
 										}
 									: undefined;
@@ -1252,6 +1256,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 											this.session.modelRegistry!,
 											this.session.settings,
 											this.session.getSessionId?.() ?? undefined,
+											this.session.getAvailableModels?.(),
 										);
 									}
 								: undefined;

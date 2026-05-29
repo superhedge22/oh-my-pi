@@ -140,6 +140,7 @@ export class ModelSelectorComponent extends Container {
 	#errorMessage?: unknown;
 	#tui: TUI;
 	#scopedModels: ReadonlyArray<ScopedModelItem>;
+	#modelScopeConfigured: boolean;
 	#temporaryOnly: boolean;
 
 	#menuRoleActions: MenuRoleAction[] = [];
@@ -166,7 +167,7 @@ export class ModelSelectorComponent extends Container {
 		scopedModels: ReadonlyArray<ScopedModelItem>,
 		onSelect: (model: Model, role: string | null, thinkingLevel?: ThinkingLevel, selector?: string) => void,
 		onCancel: () => void,
-		options?: { temporaryOnly?: boolean; initialSearchInput?: string },
+		options?: { temporaryOnly?: boolean; initialSearchInput?: string; scopeConfigured?: boolean },
 	) {
 		super();
 
@@ -174,6 +175,7 @@ export class ModelSelectorComponent extends Container {
 		this.#settings = settings;
 		this.#modelRegistry = modelRegistry;
 		this.#scopedModels = scopedModels;
+		this.#modelScopeConfigured = options?.scopeConfigured ?? scopedModels.length > 0;
 		this.#onSelectCallback = onSelect;
 		this.#onCancelCallback = onCancel;
 		this.#temporaryOnly = options?.temporaryOnly ?? false;
@@ -190,10 +192,9 @@ export class ModelSelectorComponent extends Container {
 		this.addChild(new Spacer(1));
 
 		// Add hint about model filtering
-		const hintText =
-			scopedModels.length > 0
-				? "Showing models from --models scope"
-				: "Only showing models with configured API keys (see README for details)";
+		const hintText = this.#modelScopeConfigured
+			? "Showing models from the active model scope"
+			: "Only showing models with configured API keys (see README for details)";
 		this.addChild(new Text(theme.fg("warning", hintText), 0, 0));
 		this.addChild(new Spacer(1));
 
@@ -260,7 +261,9 @@ export class ModelSelectorComponent extends Container {
 	}
 
 	#loadRoleModels(): void {
-		const allModels = this.#modelRegistry.getAll();
+		const allModels = this.#modelScopeConfigured
+			? this.#scopedModels.map(scoped => scoped.model)
+			: this.#modelRegistry.getAll();
 		const matchPreferences = { usageOrder: this.#settings.getStorage()?.getModelUsageOrder() };
 		for (const role of getKnownRoleIds(this.#settings)) {
 			const roleValue = this.#settings.getModelRole(role);
@@ -379,7 +382,9 @@ export class ModelSelectorComponent extends Container {
 
 	#loadModelsFromCurrentRegistryState(): void {
 		let models: ModelItem[];
-		if (this.#scopedModels.length > 0) {
+
+		// Use scoped models if provided via --models flag
+		if (this.#modelScopeConfigured) {
 			models = this.#scopedModels.map(scoped => ({
 				kind: "provider",
 				provider: scoped.model.provider,
@@ -416,13 +421,13 @@ export class ModelSelectorComponent extends Container {
 
 		const candidates = models.map(item => item.model);
 		const canonicalRecords = this.#modelRegistry.getCanonicalModels({
-			availableOnly: this.#scopedModels.length === 0,
+			availableOnly: !this.#modelScopeConfigured,
 			candidates,
 		});
 		const canonicalModels = canonicalRecords
 			.map(record => {
 				const selectedModel = this.#modelRegistry.resolveCanonicalModel(record.id, {
-					availableOnly: this.#scopedModels.length === 0,
+					availableOnly: !this.#modelScopeConfigured,
 					candidates,
 				});
 				if (!selectedModel) return undefined;
@@ -544,7 +549,7 @@ export class ModelSelectorComponent extends Container {
 
 	#scheduleSelectedProviderRefresh(): void {
 		const providerId = this.#getActiveProviderId();
-		if (this.#scopedModels.length > 0 || !providerId) {
+		if (this.#modelScopeConfigured || !providerId) {
 			return;
 		}
 		if (this.#scheduledProviderRefreshes.has(providerId) || this.#refreshingProviders.has(providerId)) {
