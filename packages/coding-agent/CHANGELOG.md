@@ -62,7 +62,7 @@
 - Extracted the top-level CLI command table from `src/cli.ts` into a side-effect-free `src/cli-commands.ts` so test code can introspect the registered subcommands without triggering the entrypoint's top-level await.
 ### Fixed
 
-- Fixed `--models` session scopes leaking through automatic model selection. Scoped sessions now keep startup defaults, role switches, task subagents, retry/compaction/context fallbacks, RPC/ACP model changes, and helper model selection inside the resolved scope. This completes the earlier selector-only scope behavior ([#255](https://github.com/badlogic/pi-mono/issues/255)) and aligns CLI scoping with the `enabledModels` fallback fix ([#1022](https://github.com/can1357/oh-my-pi/issues/1022)) plus prior subagent model-routing fixes ([#985](https://github.com/can1357/oh-my-pi/issues/985), [#1008](https://github.com/can1357/oh-my-pi/issues/1008)).
+- Fixed `--models` session scopes leaking through automatic model selection. Scoped sessions now keep startup defaults, role switches, task subagents, retry/compaction/context fallbacks, RPC/ACP model changes, helper model selection, and OpenRouter routed suffix selectors inside the resolved scope. This completes the earlier selector-only scope behavior ([#255](https://github.com/badlogic/pi-mono/issues/255)) and aligns CLI scoping with the `enabledModels` fallback fix ([#1022](https://github.com/can1357/oh-my-pi/issues/1022)) plus prior subagent model-routing fixes ([#985](https://github.com/can1357/oh-my-pi/issues/985), [#1008](https://github.com/can1357/oh-my-pi/issues/1008)).
 
 ## [15.5.11] - 2026-05-29
 
