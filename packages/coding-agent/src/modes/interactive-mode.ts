@@ -32,11 +32,22 @@ import {
 	TUI,
 	visibleWidth,
 } from "@oh-my-pi/pi-tui";
-import { APP_NAME, adjustHsv, getProjectDir, hsvToRgb, isEnoent, logger, postmortem, prompt } from "@oh-my-pi/pi-utils";
+import {
+	APP_NAME,
+	adjustHsv,
+	formatNumber,
+	getProjectDir,
+	hsvToRgb,
+	isEnoent,
+	logger,
+	postmortem,
+	prompt,
+} from "@oh-my-pi/pi-utils";
 import chalk from "chalk";
 import { KeybindingsManager } from "../config/keybindings";
 import { isSettingsInitialized, Settings, settings } from "../config/settings";
 import type {
+	ContextUsage,
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 	ExtensionWidgetContent,
@@ -115,7 +126,14 @@ import {
 	onThemeChange,
 	theme,
 } from "./theme/theme";
-import type { CompactionQueuedMessage, InteractiveModeContext, SubmittedUserInput, TodoItem, TodoPhase } from "./types";
+import type {
+	CompactionQueuedMessage,
+	InteractiveModeContext,
+	InteractiveSelectorDialogOptions,
+	SubmittedUserInput,
+	TodoItem,
+	TodoPhase,
+} from "./types";
 import { UiHelpers } from "./utils/ui-helpers";
 
 const HINT_SHIMMER_PALETTE: ShimmerPalette = {
@@ -187,6 +205,8 @@ function formatHudNoteMarker(count: number): string {
 type GoalSubcommand = "set" | "show" | "pause" | "resume" | "drop" | "budget";
 
 const GOAL_SUBCOMMANDS = new Set<GoalSubcommand>(["set", "show", "pause", "resume", "drop", "budget"]);
+const PLAN_KEEP_CONTEXT_OPTION_INDEX = 2;
+const PLAN_KEEP_CONTEXT_DISABLE_THRESHOLD_PERCENT = 95;
 
 function parseGoalSubcommand(args: string): { sub: GoalSubcommand | undefined; rest: string } {
 	const trimmed = args.trim();
@@ -198,6 +218,10 @@ function parseGoalSubcommand(args: string): { sub: GoalSubcommand | undefined; r
 		return { sub: first as GoalSubcommand, rest: match[2]?.trim() ?? "" };
 	}
 	return { sub: undefined, rest: trimmed };
+}
+
+function formatContextTokenCount(value: number): string {
+	return formatNumber(Math.max(0, Math.round(value))).toLowerCase();
 }
 
 /** Options for creating an InteractiveMode instance (for future API use) */
@@ -1652,6 +1676,28 @@ export class InteractiveMode implements InteractiveModeContext {
 		return `up/down navigate  enter select  ${externalEditorKey.toLowerCase()} open in editor  esc cancel`;
 	}
 
+	#getPlanApprovalContextUsage(): ContextUsage | undefined {
+		const executionModel = this.#planModePreviousModelState?.model ?? this.session.model;
+		const contextWindow = executionModel?.contextWindow;
+		if (typeof contextWindow === "number") {
+			return this.session.getContextUsage({ contextWindow });
+		}
+		return this.session.getContextUsage();
+	}
+
+	#formatKeepContextLabel(contextUsage: ContextUsage | undefined): string {
+		if (contextUsage?.tokens == null) {
+			return "Approve and keep context";
+		}
+		const tokens = formatContextTokenCount(contextUsage.tokens);
+		const contextWindow = formatContextTokenCount(contextUsage.contextWindow);
+		return `Approve and keep context (~${tokens} / ${contextWindow})`;
+	}
+
+	#isKeepContextDisabled(contextUsage: ContextUsage | undefined): boolean {
+		return contextUsage?.percent != null && contextUsage.percent > PLAN_KEEP_CONTEXT_DISABLE_THRESHOLD_PERCENT;
+	}
+
 	async #openPlanInExternalEditor(planFilePath: string): Promise<void> {
 		const editorCmd = getEditorCommand();
 		if (!editorCmd) {
@@ -2101,17 +2147,16 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 
 		this.#renderPlanPreview(planContent, { append: true });
-		const contextUsage = this.session.getContextUsage();
-		const keepContextLabel =
-			contextUsage?.percent != null
-				? `Approve and keep context (${contextUsage.percent.toFixed(1)}%)`
-				: "Approve and keep context";
+		const contextUsage = this.#getPlanApprovalContextUsage();
+		const keepContextLabel = this.#formatKeepContextLabel(contextUsage);
+		const keepContextDisabled = this.#isKeepContextDisabled(contextUsage);
 		const choice = await this.showHookSelector(
 			"Plan mode - next step",
 			["Approve and execute", "Approve and compact context", keepContextLabel, "Refine plan"],
 			{
 				helpText: this.#getPlanReviewHelpText(),
 				onExternalEditor: () => void this.#openPlanInExternalEditor(planFilePath),
+				disabledIndices: keepContextDisabled ? [PLAN_KEEP_CONTEXT_OPTION_INDEX] : undefined,
 			},
 		);
 
@@ -2903,7 +2948,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	showHookSelector(
 		title: string,
 		options: string[],
-		dialogOptions?: ExtensionUIDialogOptions,
+		dialogOptions?: InteractiveSelectorDialogOptions,
 	): Promise<string | undefined> {
 		return this.#extensionUiController.showHookSelector(title, options, dialogOptions);
 	}

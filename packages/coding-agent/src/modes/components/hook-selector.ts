@@ -31,6 +31,7 @@ export interface HookSelectorOptions {
 	onRight?: () => void;
 	onExternalEditor?: () => void;
 	helpText?: string;
+	disabledIndices?: readonly number[];
 }
 
 class OutlinedList extends Container {
@@ -58,6 +59,7 @@ class OutlinedList extends Container {
 export class HookSelectorComponent extends Container {
 	#options: string[];
 	#selectedIndex: number;
+	#disabledIndices: Set<number>;
 	#maxVisible: number;
 	#listContainer: Container | undefined;
 	#outlinedList: OutlinedList | undefined;
@@ -79,7 +81,10 @@ export class HookSelectorComponent extends Container {
 		super();
 
 		this.#options = options;
-		this.#selectedIndex = Math.min(opts?.initialIndex ?? 0, options.length - 1);
+		this.#disabledIndices = new Set(
+			(opts?.disabledIndices ?? []).filter(index => Number.isInteger(index) && index >= 0 && index < options.length),
+		);
+		this.#selectedIndex = this.#coerceSelectedIndex(opts?.initialIndex ?? 0);
 		this.#maxVisible = Math.max(3, opts?.maxVisible ?? 12);
 		this.#onSelectCallback = onSelect;
 		this.#onCancelCallback = onCancel;
@@ -104,7 +109,7 @@ export class HookSelectorComponent extends Container {
 					opts?.onTimeout?.();
 					// Auto-select current option on timeout (typically the first/recommended option)
 					const selected = this.#options[this.#selectedIndex];
-					if (selected) {
+					if (selected && !this.#isDisabled(this.#selectedIndex)) {
 						this.#onSelectCallback(selected);
 					} else {
 						this.#onCancelCallback();
@@ -129,6 +134,40 @@ export class HookSelectorComponent extends Container {
 		this.#updateList();
 	}
 
+	#isDisabled(index: number): boolean {
+		return this.#disabledIndices.has(index);
+	}
+
+	#coerceSelectedIndex(index: number): number {
+		if (this.#options.length === 0) return -1;
+		const maxIndex = this.#options.length - 1;
+		const clamped = Math.max(0, Math.min(index, maxIndex));
+		if (!this.#isDisabled(clamped)) return clamped;
+		for (let i = clamped + 1; i <= maxIndex; i++) {
+			if (!this.#isDisabled(i)) return i;
+		}
+		for (let i = clamped - 1; i >= 0; i--) {
+			if (!this.#isDisabled(i)) return i;
+		}
+		return clamped;
+	}
+
+	#moveSelection(delta: number): void {
+		if (this.#options.length === 0) return;
+		const maxIndex = this.#options.length - 1;
+		let index = this.#selectedIndex;
+		while (true) {
+			const next = Math.max(0, Math.min(index + delta, maxIndex));
+			if (next === index) return;
+			index = next;
+			if (!this.#isDisabled(index)) {
+				this.#selectedIndex = index;
+				this.#updateList();
+				return;
+			}
+		}
+	}
+
 	#updateList(): void {
 		const lines: string[] = [];
 		const startIndex = Math.max(
@@ -140,10 +179,11 @@ export class HookSelectorComponent extends Container {
 		const mdTheme = getMarkdownTheme();
 		for (let i = startIndex; i < endIndex; i++) {
 			const isSelected = i === this.#selectedIndex;
-			const label = isSelected
-				? renderInlineMarkdown(this.#options[i], mdTheme, t => theme.fg("accent", t))
-				: renderInlineMarkdown(this.#options[i], mdTheme, t => theme.fg("text", t));
-			const prefix = isSelected ? theme.fg("accent", `${theme.nav.cursor} `) : "  ";
+			const isDisabled = this.#isDisabled(i);
+			const textColor = isDisabled ? "dim" : isSelected ? "accent" : "text";
+			const prefixColor = isDisabled ? "dim" : "accent";
+			const label = renderInlineMarkdown(this.#options[i], mdTheme, t => theme.fg(textColor, t));
+			const prefix = isSelected ? theme.fg(prefixColor, `${theme.nav.cursor} `) : "  ";
 			lines.push(prefix + label);
 		}
 
@@ -165,14 +205,12 @@ export class HookSelectorComponent extends Container {
 		this.#countdown?.reset();
 
 		if (matchesKey(keyData, "up") || keyData === "k") {
-			this.#selectedIndex = Math.max(0, this.#selectedIndex - 1);
-			this.#updateList();
+			this.#moveSelection(-1);
 		} else if (matchesKey(keyData, "down") || keyData === "j") {
-			this.#selectedIndex = Math.min(this.#options.length - 1, this.#selectedIndex + 1);
-			this.#updateList();
+			this.#moveSelection(1);
 		} else if (matchesKey(keyData, "enter") || matchesKey(keyData, "return") || keyData === "\n") {
 			const selected = this.#options[this.#selectedIndex];
-			if (selected) this.#onSelectCallback(selected);
+			if (selected && !this.#isDisabled(this.#selectedIndex)) this.#onSelectCallback(selected);
 		} else if (matchesKey(keyData, "left")) {
 			this.#onLeftCallback?.();
 		} else if (matchesKey(keyData, "right")) {
